@@ -4,6 +4,8 @@ library(glmnet)
 library(bild)
 library(lme4)
 library(plotly)
+require(scales)
+
 #install.packages("bild")
 #install.packages("glmnet")
 
@@ -46,9 +48,38 @@ b = bild(Reel ~ oui+non, data = Df.Resultat2 ,start = NULL, dependence = 'indR')
 summary(b)
 plot(b,which=5)
 
-glmm = glmer(Reel ~ oui +(1|Nom), data=Df.Resultat2 , family="binomial", nAGQ = 9)
-summary(glmm)
-ranef(glmm)
+glmm2 = glmer(Reel ~ oui + non + (1|Nom), data=Df.Resultat2 , family="binomial", nAGQ = 9)
+summary(glmm2)
+ranef(glmm2)
+
+vecteur.noms = unique(Df.Resultat2$Nom)
+df.glmm2 = data.frame(
+	Nom = rep(sort(vecteur.noms), each = 3),
+	intercept = rep(unlist(ranef(glmm2)),each = 3),
+	oui = rep(c(TRUE,FALSE,FALSE),length(vecteur.noms)),
+	non = rep(c(FALSE,FALSE,TRUE),length(vecteur.noms)),
+	reponse = rep(c("Oui","Peut-Être /\nPas de réponse","Non"),length(vecteur.noms))
+)
+
+df.glmm2$fit = predict(glmm2, df.glmm2, type = "response")
+df.glmm2$Nom <- factor(df.glmm2$Nom, levels = unique(df.glmm2$Nom[order(df.glmm2$intercept)]))
+df.glmm2$reponse <- factor(df.glmm2$reponse, levels = c("Oui","Peut-Être /\nPas de réponse","Non"))
+
+
+g3 = ggplot(data = df.glmm2)+
+geom_point(aes(x = Nom, y = fit, color=reponse))+
+scale_y_continuous(labels=percent)+
+scale_color_manual(values = c("green","orange", "red"), name = "Réponse sur FB")+
+theme_bw()+
+xlab("")+
+ylab("Probabilité de présence")+
+theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+p3 = ggplotly(g3)
+plotly_POST(p3, filename = "PredictionSelonReponse")
+
++
+geom_line(aes(x = as.numeric(Edition), y = fit, color=Nom))
 
 df.new = data.frame(Nom = unique(Df.Resultat2$Nom),oui = TRUE)
 df.new = data.frame(Nom = unique(Df.Resultat2$Nom),oui = FALSE)
@@ -129,24 +160,32 @@ theme(legend.position="none")
 
 g2 = ggplot()+ #stat_summary(fun.y = sum)+
 geom_ribbon(data = dfpredict, aes(x = as.numeric(Edition), ymin = LConf, ymax = HConf),fill = "grey80")+
-geom_point(data = Df.Resultat2, aes(x = as.numeric(Edition), y = Reel, color=Nom))+
-geom_line(data = Df.Resultat2, aes(x = as.numeric(Edition), y = fit, color=Nom, group=Nom))+
-geom_line(data = subset(dfpredict,as.numeric(Edition)>=17), aes(x = as.numeric(Edition), y = fit, color=Nom, group=Nom),linetype = "dashed")+
+geom_point(data = Df.Resultat2, aes(x = as.numeric(Edition), y = Reel, color=Reponse))+
+geom_line(data = Df.Resultat2, aes(x = as.numeric(Edition), y = fit))+
+geom_line(data = subset(dfpredict,as.numeric(Edition)>=17), aes(x = as.numeric(Edition), y = fit),linetype = "dashed")+
 scale_x_continuous(breaks = seq(9, 20, by = 1))+
 scale_y_continuous(breaks = 0:1, labels = c("Non","Oui"))+
+scale_color_manual(values = c("red","green", "purple","orange"), name = "Réponse sur FB")+
 theme_bw()+
 xlab("Édition")+
 ylab("Présence")+
 facet_wrap(~Nom)+
-theme(legend.position="none")
+theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
+p = plotly_build(g2)
 
-p2 = ggplotly(g2)
+for(i in 1:136){
+if(substr(p$data[[i]]$name,1,1)=="("){
+p$data[[i]]$showlegend=FALSE
+}
+}
+
+#p2 = ggplotly(g2)
 
 Sys.setenv("plotly_username"="thundergui")
 Sys.setenv("plotly_api_key"="hp7t501b1z")
 
-plotly_POST(p2, filename = "Presence5a7chaque")
+plotly_POST(p, filename = "Presence5a7chaque")
 
 
 +
